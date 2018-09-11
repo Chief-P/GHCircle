@@ -97,7 +97,7 @@ def count_layer(src):
 
 def display(g, username):
 	plt.subplot(111)
-	nx.draw(g, with_labels=True)
+	nx.draw_kamada_kawai(g, with_labels=True) # forced-directed
 	plt.savefig(username + ".png")
 	plt.show()
 
@@ -118,7 +118,7 @@ def main():
 			q.enqueue(f)
 
 	remove_redundance()
-	if max_layer < 3:
+	if max_layer < 4:
 		display(dg, username)
 	# some fuckin analysis of dg here
 
