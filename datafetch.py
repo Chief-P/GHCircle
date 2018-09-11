@@ -1,20 +1,21 @@
 import requests
 from bs4 import BeautifulSoup
-# from myds import Stack, Graph
-from myds import Stack
+# from myds import Queue, Graph
+from myds import Queue
 import networkx as nx
 import matplotlib.pyplot as plt
 
 
-dg = nx.DiGraph(layer=0)
+dg = nx.DiGraph()
+visited_list = []
 
 
 def get_url(username):
 	url = 'https://github.com/'
-	follower_tail = '?tab=follower'
+	followers_tail = '?tab=followers'
 	following_tail = '?tab=following'
 
-	return url + username + follower_tail, url + username + following_tail
+	return url + username + followers_tail, url + username + following_tail
 
 
 def fetch(url):
@@ -29,7 +30,7 @@ def get_usrlist(url):
 	usrs = soup.find_all('div', attrs={'class':'d-table table-fixed col-12 width-full py-4 border-bottom border-gray-light'})
 
 	usrlist = []
-	usrs = usrs[:10]
+	# usrs = usrs[:10]
 	for usr in usrs:
 		usrlist.append(usr.find('span', attrs={'class':'link-gray pl-1'}).string)
 
@@ -38,27 +39,24 @@ def get_usrlist(url):
 
 def get_relation(username):
 	print('Getting', username + '...')
-	global dg
-	if username in dg and dg.out_degree(username) != 0: # visited
+	global dg, visited_list
+	if username in visited_list: # visited
+		print('Visited')
 		return [], []
-	dg.add_node(username, layer=dg.graph['layer'])
+	visited_list.append(username)
 
-	is_deeper = False
-	follower_url, following_url = get_url(username)
-	followers = get_usrlist(follower_url)
-	if len(followers) < 100: # U may not know him, relationship analysis
-		for p in followers:
-			dg.add_edge(p, username)
-			dg.nodes[p]['layer'] = dg.nodes[username]['layer'] + 1
-			is_deeper = True
+	followers_url, following_url = get_url(username)
+
+	followers = get_usrlist(followers_url)
+	if len(followers) == 50: # Too Many followers
+		print('Too Many Followers')
+		return [], []
+	for p in followers:
+		dg.add_edge(p, username)
+
 	followings = get_usrlist(following_url)
 	for p in followings:
 		dg.add_edge(username, p)
-		dg.nodes[p]['layer'] = dg.nodes[username]['layer'] + 1
-		is_deeper = True
-
-	if is_deeper:
-		dg.graph['layer'] += 1
 
 	return followers, followings
 
@@ -72,12 +70,36 @@ def regularize_ml(ml):
 	return ml
 
 
+def remove_duplicates(l):
+	ans = []
+	for i in l:
+		if i not in ans:
+			ans.append(i)
+	return ans
+
+
+def remove_redundance():
+	global dg
+	delete_list = []
+	for n in dg.nodes:
+		if dg.in_degree(n) == 1 and dg.out_degree(n) == 0 or dg.out_degree(n) == 1 and dg.in_degree(n) == 0:
+			delete_list.append(n)
+	for n in delete_list:
+		dg.remove_node(n)
+
+
+def count_layer(src):
+	global dg
+	bt = nx.bfs_tree(dg, src)
+
+	return nx.dag_longest_path_length(bt)
+
+
 def display(g, username):
 	plt.subplot(111)
-	nx.draw(g, with_labels=True, font_weight='bold')
+	nx.draw(g, with_labels=True)
 	plt.savefig(username + ".png")
 	plt.show()
-	
 
 
 def main():
@@ -85,17 +107,19 @@ def main():
 	max_layer = input('Plz input max relation layers: ')
 	max_layer = regularize_ml(int(max_layer))
 
-	stack = Stack()
-	stack.push(username)
-	while not stack.is_empty() and dg.graph['layer'] < max_layer:
-		user = stack.pop()
+	q = Queue()
+	q.enqueue(username)
+	dg.add_node(username)
+	while not q.is_empty() and count_layer(username) < max_layer:
+		user = q.dequeue()
 		followers, followings = get_relation(user)
-		print(followers + followings)
-		for f in followers + followings:
+		for f in remove_duplicates(followers + followings):
 			print(f)
-			stack.push(f)
+			q.enqueue(f)
 
-	display(dg, username)
+	remove_redundance()
+	if max_layer < 3:
+		display(dg, username)
 	# some fuckin analysis of dg here
 
 
