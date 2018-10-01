@@ -1,0 +1,7 @@
+*.png
+*.adjlist
+*.pyc
+
+__pycache__/
+graph/
+data/
